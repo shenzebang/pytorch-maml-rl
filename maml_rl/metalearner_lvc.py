@@ -101,7 +101,7 @@ class MetaLearnerLVC(object):
             mask = valid_episodes.mask
             if valid_episodes.actions.dim() > 2:
                 mask = mask.unsqueeze(2)
-            kl = weighted_mean(kl_divergence(pi, old_pi), dim=0, weights=mask)
+            kl = weighted_mean(kl_divergence(old_pi, pi), dim=0, weights=mask)
             kls.append(kl)
 
         return torch.mean(torch.stack(kls, dim=0))
@@ -153,7 +153,7 @@ class MetaLearnerLVC(object):
                 mask = valid_episodes.mask
                 if valid_episodes.actions.dim() > 2:
                     mask = mask.unsqueeze(2)
-                kl = weighted_mean(kl_divergence(pi, old_pi), dim=0,
+                kl = weighted_mean(kl_divergence(old_pi, pi), dim=0,
                     weights=mask)
                 kls.append(kl)
 
