@@ -7,7 +7,7 @@ from maml_rl.utils.torch_utils import (weighted_mean, detach_distribution,
                                        weighted_normalize)
 from maml_rl.utils.optimization import conjugate_gradient
 
-class MetaLearnerLVCPPO(object):
+class MetaLearnerLVCNormalizePPO(object):
     """Meta-learner
 
     The meta-learner is responsible for sampling the trajectories/episodes 
@@ -67,8 +67,8 @@ class MetaLearnerLVCPPO(object):
         # Get the loss on the training episodes
         loss = self.inner_loss(episodes)
         # Get the new parameters after a one-step gradient update
-        params = self.policy.update_params(loss, step_size=self.fast_lr,
-            first_order=first_order)
+        params = self.policy.update_params_normalize(loss, step_size=self.fast_lr,
+                                                     first_order=first_order)
 
         return params
 
