@@ -119,14 +119,14 @@ class MetaLearnerNGLVCVPG(object):
                                      cg_iters=cg_iters)
 
         # Compute the Lagrange multiplier
-        shs = 0.5 * torch.dot(stepdir, hessian_vector_product(stepdir))
-        lagrange_multiplier = torch.sqrt(shs / max_kl)
+        # shs = 0.5 * torch.dot(stepdir, hessian_vector_product(stepdir))
+        # lagrange_multiplier = torch.sqrt(shs / max_kl)
 
         # Save the old parameters
         old_params = parameters_to_vector(self.policy.parameters())
 
-        step_size = 1. / lagrange_multiplier.detach().numpy()
-
+        # step_size = 1. / lagrange_multiplier.detach().numpy()
+        step_size = 1
         params = vector_to_named_parameter_like(old_params - step_size * stepdir.detach(),
                                                 self.policy.named_parameters())
 
@@ -276,7 +276,7 @@ class MetaLearnerNGLVCVPG(object):
     def adam_step(self, params, grad, lr=5e-4):
         beta1 = 0.9
         beta2 = 0.999
-        eps_stable = 1e-8
+        eps_stable = 1e-5
 
         self.v = beta1 * self.v + (1. - beta1) * grad
         self.sqr = beta2 * self.sqr + (1. - beta2) * grad**2
