@@ -171,7 +171,7 @@ class MetaLearnerNGLVCVPG(object):
              ls_max_steps=10, ls_backtrack_ratio=0.5):
         ng_grads = []
         for train_episodes, valid_episodes in episodes:
-            params_adapt, step_size, stepdir = self.adapt_ng(train_episodes)
+            params_adapt, step_size, stepdir = self.adapt_ng(train_episodes, cg_iters=cg_iters)
 
             # compute $grad = \nabla_x J^{lvc}(x) at x = \theta - \eta\UM(\theta)
             # self.baseline.fit(valid_episodes)
