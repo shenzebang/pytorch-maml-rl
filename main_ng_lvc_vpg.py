@@ -3,6 +3,7 @@ import gym
 import numpy as np
 import torch
 import json
+import time
 
 from maml_rl.metalearner_ng_lvc_vpg import MetaLearnerNGLVCVPG
 from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy
@@ -50,10 +51,14 @@ def main(args):
 
     for batch in range(args.num_batches):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
-        episodes = metalearner.sample(tasks, first_order=args.first_order)
+        start = time.time()
+        episodes = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters)
+        sample_time = time.time() - start
+        start = time.time()
         metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
             cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
             ls_backtrack_ratio=args.ls_backtrack_ratio)
+        update_time = time.time() - start
 
         # Tensorboard
         writer.add_scalar('total_rewards/before_update',
@@ -61,9 +66,9 @@ def main(args):
         writer.add_scalar('total_rewards/after_update',
             total_rewards([ep.rewards for _, ep in episodes]), batch)
 
-        print("Batch {}. before_update: {}, after_update: {}".format(batch,
+        print("Batch {}. before_update: {}, after_update: {}\n sample time {}, update_time {}".format(batch,
                          total_rewards([ep.rewards for ep, _ in episodes]),
-                         total_rewards([ep.rewards for _, ep in episodes])))
+                         total_rewards([ep.rewards for _, ep in episodes]), sample_time, update_time))
 # Save policy network
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
@@ -107,7 +112,7 @@ if __name__ == '__main__':
         help='number of tasks per batch')
     parser.add_argument('--max-kl', type=float, default=1e-2,
         help='maximum value for the KL constraint in TRPO')
-    parser.add_argument('--cg-iters', type=int, default=10,
+    parser.add_argument('--cg-iters', type=int, default=20,
         help='number of iterations of conjugate gradient')
     parser.add_argument('--cg-damping', type=float, default=1e-5,
         help='damping in conjugate gradient')

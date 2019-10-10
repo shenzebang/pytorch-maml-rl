@@ -95,25 +95,31 @@ class MetaLearnerNGLVCVPG(object):
         stepdir = conjugate_gradient(hessian_vector_product, grads,
                                      cg_iters=cg_iters).detach()
 
+        print(torch.norm(hessian_vector_product(stepdir) - grads) / torch.norm(grads))
+
+        shs = 0.5 * (stepdir.dot(hessian_vector_product(stepdir)))
+        lm = torch.sqrt(max_kl / shs)
+
         stepdir_named = vector_to_named_parameter_like(stepdir, self.policy.named_parameters())
-        step_size = 0.1
+        step_size = lm
         params = OrderedDict()
         for (name, param) in self.policy.named_parameters():
             params[name] = param - step_size * stepdir_named[name]
 
         return params, step_size, stepdir
 
-    def sample(self, tasks, first_order=False):
+    def sample(self, tasks, first_order=False, cg_iters = 20):
         """Sample trajectories (before and after the update of the parameters) 
         for all the tasks `tasks`.
         """
+        print("sample")
         episodes = []
         for task in tasks:
             self.sampler.reset_task(task)
             train_episodes = self.sampler.sample(self.policy,
                 gamma=self.gamma, device=self.device)
 
-            params, _, _ = self.adapt_ng(train_episodes, first_order=first_order)
+            params, _, _ = self.adapt_ng(train_episodes, first_order=first_order, cg_iters=cg_iters)
 
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
@@ -134,8 +140,7 @@ class MetaLearnerNGLVCVPG(object):
         """Hessian-vector product, based on the Perlmutter method."""
         def _product(vector):
             kl = self.kl_divergence_ng(episodes)
-            grads = torch.autograd.grad(kl, self.policy.parameters(),
-                create_graph=True)
+            grads = torch.autograd.grad(kl, self.policy.parameters(), create_graph=True)
             flat_grad_kl = parameters_to_vector(grads)
 
             grad_kl_v = torch.dot(flat_grad_kl, vector)
@@ -145,12 +150,13 @@ class MetaLearnerNGLVCVPG(object):
             return flat_grad2_kl + damping * vector
         return _product
 
-    def step(self, episodes, max_kl=1e-3, cg_iters=10, cg_damping=1e-2,
+    def step(self, episodes, max_kl=1e-3, cg_iters=20, cg_damping=1e-2,
              ls_max_steps=10, ls_backtrack_ratio=0.5):
         """Meta-optimization step (ie. update of the initial parameters), based 
         on Trust Region Policy Optimization (TRPO, [4]).
         """
-        grads = self.compute_ng_gradient(episodes)
+        print("step")
+        grads = self.compute_ng_gradient(episodes, cg_iters=cg_iters)
 
         old_params = parameters_to_vector(self.policy.parameters())
         update_params = self.adam_step(old_params, grads)
@@ -173,11 +179,13 @@ class MetaLearnerNGLVCVPG(object):
             ng_grad_0 = torch.autograd.grad(loss, self.policy.parameters())  # no create graph
             ng_grad_0 = parameters_to_vector(ng_grad_0)
 
-            # compute the inverse of Fihser matrix at x=\theta times $grad with Conjugate Gradient
+            # compute the inverse of Fisher matrix at x=\theta times $grad with Conjugate Gradient
             hessian_vector_product = self.hessian_vector_product_ng(train_episodes,
                                                                  damping=cg_damping)
             F_inv_grad = conjugate_gradient(hessian_vector_product, ng_grad_0,
                                          cg_iters=cg_iters)
+
+            print(torch.norm(hessian_vector_product(F_inv_grad) - ng_grad_0) / torch.norm(ng_grad_0))
 
             # compute $ng_grad_1 = \nabla^2 J^{lvc}(x) at x = \theta times $F_inv_grad
             # create graph for higher differential
@@ -190,11 +198,14 @@ class MetaLearnerNGLVCVPG(object):
             ng_grad_1 = torch.autograd.grad(grad_F_inv_grad, self.policy.parameters())
             ng_grad_1 = parameters_to_vector(ng_grad_1)
 
-            # compute $ng_grad_2 = the Jocobian of {F(x) U(\theta)} at x = \theta times $F_inv_grad
+            # compute $ng_grad_2 = the Jacobian of {F(x) U(\theta)} at x = \theta times $F_inv_grad
             hessian_vector_product = self.hessian_vector_product_ng(train_episodes, damping=cg_damping)
             F_U = hessian_vector_product(stepdir)
             ng_grad_2 = torch.autograd.grad(torch.dot(F_U, F_inv_grad.detach()), self.policy.parameters())
             ng_grad_2 = parameters_to_vector(ng_grad_2)
+            # print(torch.norm(ng_grad_0))
+            # print(torch.norm(ng_grad_1))
+            # print(torch.norm(ng_grad_2))
             ng_grad = ng_grad_0 - step_size * (ng_grad_1 + ng_grad_2)
 
             ng_grad = parameters_to_vector(ng_grad)
