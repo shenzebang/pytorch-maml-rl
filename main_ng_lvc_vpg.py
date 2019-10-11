@@ -47,7 +47,7 @@ def main(args):
         int(np.prod(sampler.envs.observation_space.shape)))
 
     metalearner = MetaLearnerNGLVCVPG(sampler, policy, baseline, gamma=args.gamma,
-        fast_lr=args.fast_lr, tau=args.tau, device=args.device)
+        fast_lr=args.fast_lr, tau=args.tau, device=args.device, verbose=args.verbose)
 
     for batch in range(args.num_batches):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
@@ -128,6 +128,8 @@ if __name__ == '__main__':
         help='number of workers for trajectories sampling')
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='print debug information')
 
     args = parser.parse_args()
 
