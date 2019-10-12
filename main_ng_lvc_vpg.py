@@ -55,9 +55,14 @@ def main(args):
         episodes = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters)
         sample_time = time.time() - start
         start = time.time()
-        metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
-            cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
-            ls_backtrack_ratio=args.ls_backtrack_ratio)
+        if args.optimizer is 'sgd':
+            metalearner.step_sgd(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
+                cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
+                ls_backtrack_ratio=args.ls_backtrack_ratio)
+        else:
+            metalearner.step_adam(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
+                             cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
+                             ls_backtrack_ratio=args.ls_backtrack_ratio)
         update_time = time.time() - start
 
         # Tensorboard
@@ -120,6 +125,8 @@ if __name__ == '__main__':
         help='maximum number of iterations for line search')
     parser.add_argument('--ls-backtrack-ratio', type=float, default=0.8,
         help='maximum number of iterations for line search')
+    parser.add_argument('--optimizer', type=str, default='sgd',
+                        help='name of the optimizer')
 
     # Miscellaneous
     parser.add_argument('--output-folder', type=str, default='maml',

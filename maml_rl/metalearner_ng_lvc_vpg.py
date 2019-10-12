@@ -105,7 +105,7 @@ class MetaLearnerNGLVCVPG(object):
         if self.verbose:
             print("learning rate {}".format(lm))
         stepdir_named = vector_to_named_parameter_like(stepdir, self.policy.named_parameters())
-        step_size = lm
+        step_size = lm.detach()
         params = OrderedDict()
         for (name, param) in self.policy.named_parameters():
             params[name] = param - step_size * stepdir_named[name]
@@ -163,7 +163,7 @@ class MetaLearnerNGLVCVPG(object):
             return flat_grad2_kl + damping * vector
         return _product
 
-    def step(self, episodes, max_kl=1e-3, cg_iters=20, cg_damping=1e-2,
+    def step_adam(self, episodes, max_kl=1e-3, cg_iters=20, cg_damping=1e-2,
              ls_max_steps=10, ls_backtrack_ratio=0.5):
         """Meta-optimization step (ie. update of the initial parameters), based 
         on Trust Region Policy Optimization (TRPO, [4]).
@@ -173,6 +173,18 @@ class MetaLearnerNGLVCVPG(object):
 
         old_params = parameters_to_vector(self.policy.parameters())
         update_params = self.adam_step(old_params, grads)
+        vector_to_parameters(update_params, self.policy.parameters())
+
+    def step_sgd(self, episodes, max_kl=1e-3, cg_iters=20, cg_damping=1e-2,
+             ls_max_steps=10, ls_backtrack_ratio=0.5):
+        """Meta-optimization step (ie. update of the initial parameters), based
+        on Trust Region Policy Optimization (TRPO, [4]).
+        """
+        print("step")
+        grads = self.compute_ng_gradient(episodes, cg_iters=cg_iters)
+
+        old_params = parameters_to_vector(self.policy.parameters())
+        update_params = old_params - 3e-2*grads
         vector_to_parameters(update_params, self.policy.parameters())
 
     def to(self, device, **kwargs):
