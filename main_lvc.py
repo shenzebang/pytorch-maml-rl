@@ -50,7 +50,7 @@ def main(args):
 
     for batch in range(args.num_batches):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
-        episodes = metalearner.sample(tasks, first_order=args.first_order)
+        episodes, kl = metalearner.sample(tasks, first_order=args.first_order)
         metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
             cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
             ls_backtrack_ratio=args.ls_backtrack_ratio)
@@ -64,6 +64,7 @@ def main(args):
         print("Batch {}. before_update: {}, after_update: {}".format(batch,
                          total_rewards([ep.rewards for ep, _ in episodes]),
                          total_rewards([ep.rewards for _, ep in episodes])))
+        print("Batch {}. kl-divergence between meta update: {}".format(batch, kl))
 # Save policy network
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:

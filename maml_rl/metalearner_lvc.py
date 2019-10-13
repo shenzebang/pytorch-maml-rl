@@ -74,6 +74,7 @@ class MetaLearnerLVC(object):
         for all the tasks `tasks`.
         """
         episodes = []
+        kls = []
         for task in tasks:
             self.sampler.reset_task(task)
             train_episodes = self.sampler.sample(self.policy,
@@ -81,10 +82,19 @@ class MetaLearnerLVC(object):
 
             params = self.adapt(train_episodes, first_order=first_order)
 
+            # compute the kl divergence
+            with torch.autograd.no_grad():
+                pi = self.policy(train_episodes.observations, params=params)
+                pi_old = self.policy(train_episodes.observations)
+                kl = kl_divergence(pi_old, pi).mean()
+            kls.append(kl)
+
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
-        return episodes
+
+        kl = torch.mean(torch.stack(kls))
+        return episodes, kl
 
     def kl_divergence(self, episodes, old_pis=None):
         kls = []
