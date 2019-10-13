@@ -93,8 +93,7 @@ class MetaLearnerLVC(object):
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
 
-        kl = torch.mean(torch.stack(kls))
-        return episodes, kl
+        return episodes, kls
 
     def kl_divergence(self, episodes, old_pis=None):
         kls = []
