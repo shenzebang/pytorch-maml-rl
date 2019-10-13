@@ -60,6 +60,10 @@ def main(args):
             total_rewards([ep.rewards for ep, _ in episodes]), batch)
         writer.add_scalar('total_rewards/after_update',
             total_rewards([ep.rewards for _, ep in episodes]), batch)
+        writer.add_scalar('kl-mean between meta update',
+            torch.mean(torch.stack(kls)), batch)
+        writer.add_scalar('kl-std between meta update',
+            torch.std(torch.stack(kls)), batch)
 
         print("Batch {}. before_update: {}, after_update: {}".format(batch,
                          total_rewards([ep.rewards for ep, _ in episodes]),
