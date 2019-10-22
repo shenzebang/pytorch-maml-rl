@@ -52,7 +52,7 @@ def main(args):
     for batch in range(args.num_batches):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
         start = time.time()
-        episodes = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters)
+        episodes, kls, param_diffs = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters)
         sample_time = time.time() - start
         start = time.time()
         if args.optimizer is 'sgd':
@@ -70,10 +70,22 @@ def main(args):
             total_rewards([ep.rewards for ep, _ in episodes]), batch)
         writer.add_scalar('total_rewards/after_update',
             total_rewards([ep.rewards for _, ep in episodes]), batch)
+        writer.add_scalar('kl-mean between meta update',
+                          torch.mean(torch.stack(kls)), batch)
+        writer.add_scalar('kl-std between meta update',
+                          torch.std(torch.stack(kls)), batch)
+        writer.add_scalar('Euclidean-distance-mean between meta update',
+                          torch.mean(torch.stack(param_diffs)), batch)
+        writer.add_scalar('Euclidean-distance-std between meta update',
+                          torch.std(torch.stack(param_diffs)), batch)
 
         print("Batch {}. before_update: {}, after_update: {}\n sample time {}, update_time {}".format(batch,
                          total_rewards([ep.rewards for ep, _ in episodes]),
                          total_rewards([ep.rewards for _, ep in episodes]), sample_time, update_time))
+        print("Batch {}. kl-divergence between meta update: {}, kl std: {}".format(
+            batch, torch.mean(torch.stack(kls)), torch.std(torch.stack(kls))))
+        print("Batch {}. Euclidean-distance-mean meta update: {}, Euclidean-distance-std: {}".format(
+            batch, torch.mean(torch.stack(param_diffs)), torch.std(torch.stack(param_diffs))))
 # Save policy network
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:

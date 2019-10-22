@@ -10,6 +10,14 @@ from maml_rl.utils.optimization import conjugate_gradient
 from collections import OrderedDict
 
 
+def named_parameters_to_vector(named_parameters):
+    vec = []
+    for (name, param) in named_parameters.items():
+
+        vec.append(param.view(-1))
+    return torch.cat(vec)
+
+
 def vector_to_named_parameter_like(vector, named_parameter_example):
     pointer = 0
     params = OrderedDict()
@@ -125,8 +133,12 @@ class MetaLearnerNGLVCVPG(object):
         """Sample trajectories (before and after the update of the parameters) 
         for all the tasks `tasks`.
         """
-        print("sample")
+        # print("sample")
         episodes = []
+        kls = []
+        param_diffs = []
+        curr_params = self.policy.parameters()
+        curr_params_flat = parameters_to_vector(curr_params)
         for task in tasks:
             self.sampler.reset_task(task)
             train_episodes = self.sampler.sample(self.policy,
@@ -134,10 +146,20 @@ class MetaLearnerNGLVCVPG(object):
 
             params, _, _ = self.adapt_ng(train_episodes, first_order=first_order, cg_iters=cg_iters)
 
+            # compute the kl divergence
+            with torch.autograd.no_grad():
+                pi = self.policy(train_episodes.observations, params=params)
+                pi_old = self.policy(train_episodes.observations)
+                kl = kl_divergence(pi_old, pi).mean()
+                params_flat = named_parameters_to_vector(params)
+                param_diff = torch.norm(params_flat - curr_params_flat)
+            kls.append(kl)
+            param_diffs.append(param_diff)
+
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
-        return episodes
+        return episodes, kls, param_diffs
 
     def kl_divergence_ng(self, episodes):
         # episode is the train episode
@@ -168,7 +190,7 @@ class MetaLearnerNGLVCVPG(object):
         """Meta-optimization step (ie. update of the initial parameters), based 
         on Trust Region Policy Optimization (TRPO, [4]).
         """
-        print("step")
+        # print("step")
         grads = self.compute_ng_gradient(episodes, cg_iters=cg_iters)
 
         old_params = parameters_to_vector(self.policy.parameters())
