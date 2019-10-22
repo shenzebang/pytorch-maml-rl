@@ -1,11 +1,31 @@
 import torch
-from torch.nn.utils.convert_parameters import (vector_to_parameters,
-                                               parameters_to_vector)
+from torch.nn.utils.convert_parameters import vector_to_parameters, parameters_to_vector
+
 from torch.distributions.kl import kl_divergence
 
 from maml_rl.utils.torch_utils import (weighted_mean, detach_distribution,
                                        weighted_normalize)
 from maml_rl.utils.optimization import conjugate_gradient
+
+
+def named_parameters_to_vector(named_parameters):
+    r"""Convert parameters to one vector
+
+    Arguments:
+        parameters (Iterable[Tensor]): an iterator of Tensors that are the
+            parameters of a model.
+
+    Returns:
+        The parameters represented by a single vector
+    """
+    # Flag for the device where the parameter is located
+
+
+    vec = []
+    for (name, param) in named_parameters.items():
+
+        vec.append(param.view(-1))
+    return torch.cat(vec)
 
 class MetaLearnerLVC(object):
     """Meta-learner
@@ -75,6 +95,9 @@ class MetaLearnerLVC(object):
         """
         episodes = []
         kls = []
+        param_diffs = []
+        curr_params = self.policy.parameters()
+        curr_params_flat = parameters_to_vector(curr_params)
         for task in tasks:
             self.sampler.reset_task(task)
             train_episodes = self.sampler.sample(self.policy,
@@ -87,13 +110,16 @@ class MetaLearnerLVC(object):
                 pi = self.policy(train_episodes.observations, params=params)
                 pi_old = self.policy(train_episodes.observations)
                 kl = kl_divergence(pi_old, pi).mean()
+                params_flat = named_parameters_to_vector(params)
+                param_diff = torch.norm(params_flat - curr_params_flat)
             kls.append(kl)
+            param_diffs.append(param_diff)
 
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
 
-        return episodes, kls
+        return episodes, kls, param_diffs
 
     def kl_divergence(self, episodes, old_pis=None):
         kls = []
