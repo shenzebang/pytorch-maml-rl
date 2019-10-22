@@ -86,7 +86,7 @@ class MetaLearnerNGLVCVPG(object):
 
         return loss
 
-    def adapt_ng(self, episodes, first_order=False, max_kl=1e-1, cg_iters=20, cg_damping=1e-2,
+    def adapt_ng(self, episodes, first_order=False, max_kl=1e-3, cg_iters=20, cg_damping=1e-2,
              ls_max_steps=10, ls_backtrack_ratio=0.5):
         """Adapt the parameters of the policy network to a new task, from
         sampled trajectories `episodes`, with a one-step natural gradient update.
