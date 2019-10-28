@@ -8,24 +8,22 @@ from maml_rl.utils.torch_utils import (weighted_mean, detach_distribution,
 from maml_rl.utils.optimization import conjugate_gradient
 
 
+
+def W2(pi_1, pi_2):
+    W2 = (pi_1.mean - pi_2.mean).pow(2).sum(2, keepdim=True) + (pi_1.stddev - pi_2.stddev).pow(2).sum(2, keepdim=True)
+    return W2
+
+
+def sigma_square(pi):
+    return (pi.stddev).pow(2).sum(2, keepdim=True)
+
 def named_parameters_to_vector(named_parameters):
-    r"""Convert parameters to one vector
-
-    Arguments:
-        parameters (Iterable[Tensor]): an iterator of Tensors that are the
-            parameters of a model.
-
-    Returns:
-        The parameters represented by a single vector
-    """
-    # Flag for the device where the parameter is located
-
-
     vec = []
     for (name, param) in named_parameters.items():
 
         vec.append(param.view(-1))
     return torch.cat(vec)
+
 
 class MetaLearnerLVC(object):
     """Meta-learner
@@ -95,6 +93,8 @@ class MetaLearnerLVC(object):
         """
         episodes = []
         kls = []
+        W2D2s = []
+        sss = []
         param_diffs = []
         curr_params = self.policy.parameters()
         curr_params_flat = parameters_to_vector(curr_params)
@@ -112,14 +112,19 @@ class MetaLearnerLVC(object):
                 kl = kl_divergence(pi_old, pi).mean()
                 params_flat = named_parameters_to_vector(params)
                 param_diff = torch.norm(params_flat - curr_params_flat)
+                W2D2 = W2(pi, pi_old)
+                ss = sigma_square(pi)
+
             kls.append(kl)
+            W2D2s.append(W2D2)
+            sss.append(ss)
             param_diffs.append(param_diff)
 
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
 
-        return episodes, kls, param_diffs
+        return episodes, kls, param_diffs, W2D2s, sss
 
     def kl_divergence(self, episodes, old_pis=None):
         kls = []

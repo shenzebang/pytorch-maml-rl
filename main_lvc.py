@@ -50,7 +50,7 @@ def main(args):
 
     for batch in range(args.num_batches):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
-        episodes, kls, param_diffs = metalearner.sample(tasks, first_order=args.first_order)
+        episodes, kls, param_diffs, W2D2s, sss = metalearner.sample(tasks, first_order=args.first_order)
         metalearner.step(episodes, max_kl=args.max_kl, cg_iters=args.cg_iters,
             cg_damping=args.cg_damping, ls_max_steps=args.ls_max_steps,
             ls_backtrack_ratio=args.ls_backtrack_ratio)
@@ -74,6 +74,10 @@ def main(args):
                          total_rewards([ep.rewards for _, ep in episodes])))
         print("Batch {}. kl-divergence between meta update: {}, kl std: {}".format(
             batch, torch.mean(torch.stack(kls)), torch.std(torch.stack(kls))))
+        print("Batch {}. W2-divergence between meta update: {}, kl std: {}".format(
+            batch, torch.mean(torch.stack(W2D2s)), torch.std(torch.stack(W2D2s))))
+        print("Batch {}. sigma square between meta update: {}, kl std: {}".format(
+            batch, torch.mean(torch.stack(sss)), torch.std(torch.stack(sss))))
         print("Batch {}. Euclidean-distance-mean meta update: {}, Euclidean-distance-std: {}".format(
             batch, torch.mean(torch.stack(param_diffs)), torch.std(torch.stack(param_diffs))))
 # Save policy network
