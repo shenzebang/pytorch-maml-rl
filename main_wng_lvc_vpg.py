@@ -48,11 +48,11 @@ def main(args):
 
     metalearner = MetaLearnerNGLVCVPG(sampler, policy, baseline, gamma=args.gamma,
         fast_lr=args.fast_lr, tau=args.tau, device=args.device, verbose=args.verbose)
+    tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
 
     for batch in range(args.num_batches):
-        tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
         start = time.time()
-        episodes, kls, param_diffs = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters)
+        episodes, kls, param_diffs, W2D2s, sss = metalearner.sample(tasks, first_order=args.first_order, cg_iters=args.cg_iters, cg_damping=args.cg_damping)
         sample_time = time.time() - start
         start = time.time()
         if args.optimizer is 'sgd':
@@ -84,6 +84,10 @@ def main(args):
                          total_rewards([ep.rewards for _, ep in episodes]), sample_time, update_time))
         print("Batch {}. kl-divergence between meta update: {}, kl std: {}".format(
             batch, torch.mean(torch.stack(kls)), torch.std(torch.stack(kls))))
+        print("Batch {}. W2-divergence between meta update: {}, kl std: {}".format(
+            batch, torch.mean(torch.stack(W2D2s)), torch.std(torch.stack(W2D2s))))
+        print("Batch {}. sigma square between meta update: {}, kl std: {}".format(
+            batch, torch.mean(torch.stack(sss)), torch.std(torch.stack(sss))))
         print("Batch {}. Euclidean-distance-mean meta update: {}, Euclidean-distance-std: {}".format(
             batch, torch.mean(torch.stack(param_diffs)), torch.std(torch.stack(param_diffs))))
 # Save policy network

@@ -9,9 +9,13 @@ from maml_rl.utils.optimization import conjugate_gradient
 
 from collections import OrderedDict
 
+
 def W2(pi_1, pi_2):
     W2 = (pi_1.mean - pi_2.mean).pow(2).sum(2, keepdim=True) + (pi_1.stddev - pi_2.stddev).pow(2).sum(2, keepdim=True)
     return W2
+
+def sigma_square(pi):
+    return (pi.stddev).pow(2).sum(2, keepdim=True)
 
 def named_parameters_to_vector(named_parameters):
     vec = []
@@ -132,13 +136,15 @@ class MetaLearnerNGLVCVPG(object):
 
         return params, step_size, stepdir
 
-    def sample(self, tasks, first_order=False, cg_iters = 20):
+    def sample(self, tasks, first_order=False, cg_iters = 20, cg_damping=1e-2):
         """Sample trajectories (before and after the update of the parameters) 
         for all the tasks `tasks`.
         """
         # print("sample")
         episodes = []
         kls = []
+        W2D2s = []
+        sss = []
         param_diffs = []
         curr_params = self.policy.parameters()
         curr_params_flat = parameters_to_vector(curr_params)
@@ -147,7 +153,7 @@ class MetaLearnerNGLVCVPG(object):
             train_episodes = self.sampler.sample(self.policy,
                 gamma=self.gamma, device=self.device)
 
-            params, _, _ = self.adapt_ng(train_episodes, first_order=first_order, cg_iters=cg_iters)
+            params, _, _ = self.adapt_ng(train_episodes, first_order=first_order, cg_iters=cg_iters, cg_damping=cg_damping)
 
             # compute the kl divergence
             with torch.autograd.no_grad():
@@ -156,13 +162,18 @@ class MetaLearnerNGLVCVPG(object):
                 kl = kl_divergence(pi_old, pi).mean()
                 params_flat = named_parameters_to_vector(params)
                 param_diff = torch.norm(params_flat - curr_params_flat)
+                W2D2 = W2(pi, pi_old)
+                ss = sigma_square(pi)
+
             kls.append(kl)
+            W2D2s.append(W2D2)
+            sss.append(ss)
             param_diffs.append(param_diff)
 
             valid_episodes = self.sampler.sample(self.policy, params=params,
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
-        return episodes, kls, param_diffs
+        return episodes, kls, param_diffs, W2D2s, sss
 
     def W2_ng(self, episodes):
         # episode is the train episode
@@ -206,7 +217,7 @@ class MetaLearnerNGLVCVPG(object):
         on Trust Region Policy Optimization (TRPO, [4]).
         """
         print("step")
-        grads = self.compute_ng_gradient(episodes, cg_iters=cg_iters)
+        grads = self.compute_ng_gradient(episodes, cg_iters=cg_iters, cg_damping=cg_damping)
 
         old_params = parameters_to_vector(self.policy.parameters())
         update_params = old_params - 3e-2*grads
@@ -221,7 +232,7 @@ class MetaLearnerNGLVCVPG(object):
              ls_max_steps=10, ls_backtrack_ratio=0.5):
         ng_grads = []
         for train_episodes, valid_episodes in episodes:
-            params_adapt, step_size, stepdir = self.adapt_ng(train_episodes, cg_iters=cg_iters)
+            params_adapt, step_size, stepdir = self.adapt_ng(train_episodes, cg_iters=cg_iters, cg_damping=cg_damping)
 
             # compute $grad = \nabla_x J^{lvc}(x) at x = \theta - \eta\UM(\theta)
             self.baseline.fit(valid_episodes)
@@ -250,7 +261,7 @@ class MetaLearnerNGLVCVPG(object):
             ng_grad_1 = parameters_to_vector(ng_grad_1)
 
             # compute $ng_grad_2 = the Jacobian of {F(x) U(\theta)} at x = \theta times $F_inv_grad
-            hessian_vector_product = self.hessian_vector_product_ng(train_episodes, damping=0)
+            hessian_vector_product = self.hessian_vector_product_ng(train_episodes, damping=cg_damping)
             F_U = hessian_vector_product(stepdir)
             ng_grad_2 = torch.autograd.grad(torch.dot(F_U, F_inv_grad.detach()), self.policy.parameters())
             ng_grad_2 = parameters_to_vector(ng_grad_2)
