@@ -13,6 +13,8 @@ def W2(pi_1, pi_2):
     W2 = (pi_1.mean - pi_2.mean).pow(2).sum(2, keepdim=True) + (pi_1.stddev - pi_2.stddev).pow(2).sum(2, keepdim=True)
     return W2
 
+def mu_diff(pi_1, pi_2):
+    return (pi_1.mean - pi_2.mean).pow(2).sum(2, keepdim=True)
 
 def sigma_square(pi):
     return (pi.stddev).pow(2).sum(2, keepdim=True)
@@ -95,6 +97,7 @@ class MetaLearnerLVC(object):
         kls = []
         W2D2s = []
         sss = []
+        dmus = []
         param_diffs = []
         curr_params = self.policy.parameters()
         curr_params_flat = parameters_to_vector(curr_params)
@@ -114,7 +117,8 @@ class MetaLearnerLVC(object):
                 param_diff = torch.norm(params_flat - curr_params_flat)
                 W2D2 = W2(pi, pi_old)
                 ss = sigma_square(pi)
-
+                dmu = mu_diff(pi, pi_old)
+            dmus.append(dmu)
             kls.append(kl)
             W2D2s.append(W2D2)
             sss.append(ss)
@@ -124,7 +128,7 @@ class MetaLearnerLVC(object):
                 gamma=self.gamma, device=self.device)
             episodes.append((train_episodes, valid_episodes))
 
-        return episodes, kls, param_diffs, W2D2s, sss
+        return episodes, kls, param_diffs, W2D2s, sss, dmus
 
     def kl_divergence(self, episodes, old_pis=None):
         kls = []
