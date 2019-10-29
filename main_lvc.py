@@ -7,7 +7,7 @@ import json
 from maml_rl.metalearner_lvc import MetaLearnerLVC
 from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy
 from maml_rl.baseline import LinearFeatureBaseline
-from maml_rl.sampler import BatchSampler
+from maml_rl.sampler_running_state import BatchSampler
 
 from tensorboardX import SummaryWriter
 
